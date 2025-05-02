@@ -130,7 +130,6 @@ Only include relevant, available information. Omit fields that are missing or ma
 - If asked about a specific field , list all the names in it.
 - Never say "data not available".
 - Be precise, use complete sentences.
-- Do not mention or provide fields with "Nil" value or "0" value to the user.
 
 """
     try:
