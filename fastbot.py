@@ -127,10 +127,11 @@ Only include relevant, available information. Omit fields that are missing or ma
 - Answer only what the user asked.
 - Omit unrelated or unavailable details.
 - Expand abbreviations (e.g., BSc → Bachelor of Science).
+- If asked about a specific field , list all the names in it.
 - Never say "data not available".
 - Be precise, use complete sentences.
 - Do not mention or provide fields with "Nil" value or "0" value to the user.
-- If asked about a specific field , list all the corresponding values in it.
+
 """
     try:
         response = llm_model.generate_content(prompt)
