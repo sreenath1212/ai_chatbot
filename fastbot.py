@@ -132,6 +132,9 @@ Only include relevant, available information. Omit fields that are missing or ma
 - Be precise, use complete sentences.
 
 """
+    print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
+    print(prompt)
+    print("\n--- END PROMPT ---\n")
     try:
         response = llm_model.generate_content(prompt)
         return response.text
