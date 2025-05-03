@@ -128,6 +128,7 @@ Only include relevant, available information. Omit fields that are missing or ma
 {question}
 
 ### INSTRUCTIONS:
+- Omit nil valued complete information in response.
 - Answer only what the user asked.
 - Omit unrelated or unavailable details.
 - Expand abbreviations (e.g., BSc → Bachelor of Science).
