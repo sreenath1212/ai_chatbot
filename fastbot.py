@@ -144,11 +144,16 @@ Do not mention if something unavailable or not found in response.
 ### INSTRUCTIONS:
 - Identify the specific field names the user is asking about.
 - From the CONTEXT, extract the 'Institution Name' and the values for the requested fields for the relevant institutions.
-- Respond in natural English sentences.
-- If the user asks for multiple fields, include all available information for those fields for each institution.
-- **Crucially, if a requested field is not available for an institution (marked as 'N', 'No', or 'Nil' in the data), DO NOT mention that field in your response for that institution unless the user specifically asks if the information is available.**
+- Respond in natural English sentences, listing the institution and then the available information for the requested fields.
+- If the user asks for multiple fields, include only the fields for which there is actual data available (i.e., not 'N', 'No', or 'Nil').
+- **Crucially, for each institution, ONLY present the fields that have a value. Do not explicitly state that a field's value is not available.**
 - Be precise and use complete sentences.
-If the user asks about multiple institutions, provide the available information for each in a clear and readable format.
+
+For example, if the user asks "What is the city and principal of IIT Madras?", and the principal is 'Nil' in the data, you should respond: "IIT Madras is located in Chennai." (The principal information is simply not mentioned).
+
+If the user asks "What is the address of IIT Delhi?", and the address is available, you would respond: "IIT Delhi is located at [Address of IIT Delhi]."
+
+If the user asks about multiple institutions and fields, only list the available fields for each. For instance, if asking about city and principal for IIT Madras and IIT Delhi, and the principal is only available for IIT Delhi, the response might be: "IIT Madras is located in Chennai. For IIT Delhi, the principal is [Principal's Name]."
 """
     print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
     print(prompt)
