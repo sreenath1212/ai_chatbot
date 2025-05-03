@@ -65,25 +65,38 @@ def clean_field_name(field_name):
 
 
 
-def process_row(row):
-    description = ""
+def filter_relevant_fields(row, query):
     institution_name = row.get('name_of_the_institution_full_name', '').strip()
-    if institution_name:
-        description += f"{institution_name}."
-    else:
-        description += "Institution Name: Not Available."
+    if not institution_name:
+        return None
+
+    relevant_text = f"Institution: {institution_name}."
+
+    # Search for relevant fields in query
+    query_lower = query.lower()
+    matched_fields = []
 
     for field_name, field_value in row.items():
         if not field_value:
             continue
-        field_value = field_value.strip()
-        if field_value.lower() in ['n', 'no', 'Nil']:
+        if field_value.lower() in ['n', 'no', 'nil']:
             continue
-        if field_name != 'Institution_Name':
-            clean_name = clean_field_name(field_name)
-            description += f" {clean_name}: {field_value}."
 
-    return description.strip()
+        clean_name = clean_field_name(field_name).lower()
+
+        # Match query terms to field names (approx match)
+        if any(token in clean_name for token in query_lower.split()):
+            matched_fields.append((field_name, field_value))
+
+    if not matched_fields:
+        return None
+
+    for fname, fval in matched_fields:
+        clean_fname = clean_field_name(fname)
+        relevant_text += f" {clean_fname}: {fval}."
+
+    return relevant_text
+
 
 def generate_metadata_from_csv(csv_filepath, output_txt_path, num_workers=None):
     if os.path.exists(output_txt_path):
@@ -110,10 +123,17 @@ def load_data_and_embeddings():
 
 
 def retrieve_relevant_context(query, top_k):
-    query_emb = embedding_model.encode([query])
-    distances, indices = index.search(np.array(query_emb), top_k)
-    context = "\n\n".join([texts[i] for i in indices[0]])
-    return context
+    with open(CSV_FILE, 'r', encoding='utf-8') as csvfile:
+        reader = list(csv.DictReader(csvfile))
+
+    filtered_info = []
+    for row in reader:
+        entry = filter_relevant_fields(row, query)
+        if entry:
+            filtered_info.append(entry)
+
+    return "\n\n".join(filtered_info[:top_k])
+
 
 def ask_gemini(context, question):
     prompt = f"""
