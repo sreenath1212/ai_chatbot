@@ -65,7 +65,7 @@ def clean_field_name(field_name):
 
 def process_row(row):
     description = ""
-    institution_name = row.get('Institution_Name', '').strip()
+    institution_name = row.get('name_of_the_institution_full_name', '').strip()
     if institution_name:
         description += f"{institution_name}."
     else:
