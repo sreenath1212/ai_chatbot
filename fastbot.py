@@ -11,6 +11,7 @@ import os
 import time
 import json
 import google.generativeai as genai
+import difflib  
 
 # --- MUST BE FIRST: Streamlit page config ---
 st.set_page_config(
@@ -62,6 +63,29 @@ def clean_field_name(field_name):
     field_name = field_name.replace('_', ' ').replace('\n', ' ').strip().capitalize()
     field_name = re.sub(' +', ' ', field_name)
     return field_name
+
+# Add this utility function
+def extract_field_values(user_query):
+    # Normalize input
+    query = user_query.lower().strip()
+    with open(CSV_FILE, 'r', encoding='utf-8') as csvfile:
+        reader = csv.DictReader(csvfile)
+        fieldnames = reader.fieldnames
+
+        # Fuzzy match field
+        close_matches = difflib.get_close_matches(query, fieldnames, n=1, cutoff=0.6)
+        if not close_matches:
+            return None, None
+        matched_field = close_matches[0]
+
+        # Gather results
+        results = []
+        for row in reader:
+            value = row.get(matched_field, '').strip()
+            inst_name = row.get('name_of_the_institution_full_name', '').strip()
+            if value and value.lower() not in ['no', 'n', 'nil']:
+                results.append(f"Institution: {inst_name}\n{clean_field_name(matched_field)}: {value}")
+        return matched_field, results
 
 def process_row(row):
     description = ""
@@ -195,9 +219,17 @@ if user_query:
     st.session_state["messages"].append({"role": "user", "content": user_query})
     with st.chat_message("user"):
         st.markdown(f"<div class='chat-bubble'>{user_query}</div>", unsafe_allow_html=True)
+
     with st.spinner("Thinking..."):
-        context = retrieve_relevant_context(user_query, TOP_K)
+        # Check for field-based question
+        field_name, field_results = extract_field_values(user_query)
+        if field_name and field_results:
+            context = "\n\n".join(field_results)
+        else:
+            context = retrieve_relevant_context(user_query, TOP_K)
+
         raw_answer = ask_gemini(context, user_query)
+
     final_answer = ""
     with st.chat_message("assistant"):
         answer_placeholder = st.empty()
@@ -205,5 +237,6 @@ if user_query:
             final_answer = raw_answer[:i+1]
             answer_placeholder.markdown(f"<div class='chat-bubble'>{final_answer}</div>", unsafe_allow_html=True)
             time.sleep(0.01)
+
     st.session_state["messages"].append({"role": "assistant", "content": raw_answer})
     save_memory()
