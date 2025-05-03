@@ -6,12 +6,10 @@ import streamlit as st
 import faiss
 from sentence_transformers import SentenceTransformer
 import numpy as np
-import requests
 import os
 import time
 import json
 import google.generativeai as genai
-import difflib  
 
 # --- MUST BE FIRST: Streamlit page config ---
 st.set_page_config(
@@ -64,28 +62,17 @@ def clean_field_name(field_name):
     field_name = re.sub(' +', ' ', field_name)
     return field_name
 
-# Add this utility function
-def extract_field_values(user_query):
-    # Normalize input
-    query = user_query.lower().strip()
-    with open(CSV_FILE, 'r', encoding='utf-8') as csvfile:
-        reader = csv.DictReader(csvfile)
-        fieldnames = reader.fieldnames
-
-        # Fuzzy match field
-        close_matches = difflib.get_close_matches(query, fieldnames, n=1, cutoff=0.6)
-        if not close_matches:
-            return None, None
-        matched_field = close_matches[0]
-
-        # Gather results
-        results = []
-        for row in reader:
-            value = row.get(matched_field, '').strip()
-            inst_name = row.get('name_of_the_institution_full_name', '').strip()
-            if value and value.lower() not in ['no', 'n', 'nil']:
-                results.append(f"Institution: {inst_name}\n{clean_field_name(matched_field)}: {value}")
-        return matched_field, results
+def process_row_for_llm(row, requested_fields):
+    output = {}
+    institution_name = row.get('name_of_the_institution_full_name', '').strip()
+    if institution_name:
+        output['Institution Name'] = institution_name
+    for field in requested_fields:
+        field_name_in_csv = field.lower().replace(' ', '_')
+        field_value = row.get(field_name_in_csv, '').strip()
+        if field_value and field_value.lower() not in ['n', 'no', 'nil']:
+            output[clean_field_name(field)] = field_value
+    return output
 
 def process_row(row):
     description = ""
@@ -101,7 +88,7 @@ def process_row(row):
         field_value = field_value.strip()
         if field_value.lower() in ['n', 'no', 'Nil']:
             continue
-        if field_name != 'Institution_Name':
+        if field_name != 'name_of_the_institution_full_name':
             clean_name = clean_field_name(field_name)
             description += f" {clean_name}: {field_value}."
 
@@ -129,6 +116,11 @@ def load_data_and_embeddings():
     index.add(np.array(embeddings))
     return embedding_model, texts, index
 
+@st.cache_data
+def load_csv_data(csv_filepath):
+    with open(csv_filepath, 'r', encoding='utf-8') as csvfile:
+        return list(csv.DictReader(csvfile))
+
 def retrieve_relevant_context(query, top_k):
     query_emb = embedding_model.encode([query])
     distances, indices = index.search(np.array(query_emb), top_k)
@@ -139,7 +131,7 @@ def ask_gemini(context, question):
     prompt = f"""
 You are a helpful, intelligent assistant that provides concise, accurate answers about colleges.
 
-Only include relevant, available information. Omit fields that are missing or marked 'Nil'. Use clear, professional language.
+Only include relevant, available information based on the user's request. Omit fields that are missing or marked 'Nil'. Use clear, professional language.
 
 ### CONTEXT:
 {context}
@@ -148,12 +140,15 @@ Only include relevant, available information. Omit fields that are missing or ma
 {question}
 
 ### INSTRUCTIONS:
-- Answer only what the user asked.
-- Omit unrelated or unavailable details.
-- Expand abbreviations (e.g., BSc → Bachelor of Science).
-- If asked about a specific field , list all the names in it.
+- Identify the specific field names the user is asking about.
+- From the CONTEXT, extract ONLY the 'Institution Name' and the values for the requested fields for the relevant institutions.
+- Respond with a list of institutions and their corresponding values for the requested fields.
+- If the user asks for multiple fields, include all of them in your response for each institution.
+- If a requested field is not available for an institution, do not include that field in the response for that institution.
 - Never say "data not available".
-- Be precise, use complete sentences.
+- Be precise and use complete sentences.
+
+For example, if the user asks "What is the city and principal of IIT Madras?", you should look for 'City' and 'Principal' in the context for 'IIT Madras' and respond with: "IIT Madras: City is Chennai, Principal is [Principal's Name]."
 
 """
     print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
@@ -180,6 +175,7 @@ def load_memory():
 # --- Main App Logic ---
 generate_metadata_from_csv(CSV_FILE, TXT_FILE)
 embedding_model, texts, index = load_data_and_embeddings()
+csv_data = load_csv_data(CSV_FILE)
 TOP_K = len(texts)
 
 if "messages" not in st.session_state:
@@ -187,7 +183,7 @@ if "messages" not in st.session_state:
     load_memory()
 
 if not st.session_state["messages"]:
-    welcome_message = "👋 Hello! How can I help you today? I can assist you with any college information you need."
+    welcome_message = "👋 Hello! How can I help you today? I can assist you with any college information you need. Just ask!"
     st.session_state["messages"].append({"role": "assistant", "content": welcome_message})
     save_memory()
 
@@ -219,17 +215,9 @@ if user_query:
     st.session_state["messages"].append({"role": "user", "content": user_query})
     with st.chat_message("user"):
         st.markdown(f"<div class='chat-bubble'>{user_query}</div>", unsafe_allow_html=True)
-
     with st.spinner("Thinking..."):
-        # Check for field-based question
-        field_name, field_results = extract_field_values(user_query)
-        if field_name and field_results:
-            context = "\n\n".join(field_results)
-        else:
-            context = retrieve_relevant_context(user_query, TOP_K)
-
+        context = retrieve_relevant_context(user_query, TOP_K)
         raw_answer = ask_gemini(context, user_query)
-
     final_answer = ""
     with st.chat_message("assistant"):
         answer_placeholder = st.empty()
@@ -237,6 +225,5 @@ if user_query:
             final_answer = raw_answer[:i+1]
             answer_placeholder.markdown(f"<div class='chat-bubble'>{final_answer}</div>", unsafe_allow_html=True)
             time.sleep(0.01)
-
     st.session_state["messages"].append({"role": "assistant", "content": raw_answer})
     save_memory()
