@@ -6,6 +6,7 @@ import streamlit as st
 import faiss
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import requests
 import os
 import time
 import json
@@ -62,17 +63,7 @@ def clean_field_name(field_name):
     field_name = re.sub(' +', ' ', field_name)
     return field_name
 
-def process_row_for_llm(row, requested_fields):
-    output = {}
-    institution_name = row.get('name_of_the_institution_full_name', '').strip()
-    if institution_name:
-        output['Institution Name'] = institution_name
-    for field in requested_fields:
-        field_name_in_csv = field.lower().replace(' ', '_')
-        field_value = row.get(field_name_in_csv, '').strip()
-        if field_value and field_value.lower() not in ['n', 'no', 'nil']:
-            output[clean_field_name(field)] = field_value
-    return output
+
 
 def process_row(row):
     description = ""
@@ -88,7 +79,7 @@ def process_row(row):
         field_value = field_value.strip()
         if field_value.lower() in ['n', 'no', 'Nil']:
             continue
-        if field_name != 'name_of_the_institution_full_name':
+        if field_name != 'Institution_Name':
             clean_name = clean_field_name(field_name)
             description += f" {clean_name}: {field_value}."
 
@@ -116,10 +107,7 @@ def load_data_and_embeddings():
     index.add(np.array(embeddings))
     return embedding_model, texts, index
 
-@st.cache_data
-def load_csv_data(csv_filepath):
-    with open(csv_filepath, 'r', encoding='utf-8') as csvfile:
-        return list(csv.DictReader(csvfile))
+
 
 def retrieve_relevant_context(query, top_k):
     query_emb = embedding_model.encode([query])
@@ -131,9 +119,7 @@ def ask_gemini(context, question):
     prompt = f"""
 You are a helpful, intelligent assistant that provides concise, accurate answers about colleges.
 
-Only include relevant, available information based on the user's request. Omit fields that are missing or marked 'Nil'. Use clear, professional language.
-
-Do not mention if something unavailable or not found in response.
+Only include relevant, available information. Omit fields that are missing or marked 'Nil'. Use clear, professional language.
 
 ### CONTEXT:
 {context}
@@ -142,18 +128,13 @@ Do not mention if something unavailable or not found in response.
 {question}
 
 ### INSTRUCTIONS:
-- Identify the specific field names the user is asking about.
-- From the CONTEXT, extract the 'Institution Name' and the values for the requested fields for the relevant institutions.
-- Respond in natural English sentences, listing the institution and then the available information for the requested fields.
-- If the user asks for multiple fields, include only the fields for which there is actual data available (i.e., not 'N', 'No', or 'Nil').
-- **Crucially, for each institution, ONLY present the fields that have a value. Do not explicitly state that a field's value is not available.**
-- Be precise and use complete sentences.
+- Answer only what the user asked.
+- Omit unrelated or unavailable details.
+- Expand abbreviations (e.g., BSc → Bachelor of Science).
+- If asked about a specific field , list all the names in it.
+- Never say "data not available".
+- Be precise, use complete sentences.
 
-For example, if the user asks "What is the city and principal of IIT Madras?", and the principal is 'Nil' in the data, you should respond: "IIT Madras is located in Chennai." (The principal information is simply not mentioned).
-
-If the user asks "What is the address of IIT Delhi?", and the address is available, you would respond: "IIT Delhi is located at [Address of IIT Delhi]."
-
-If the user asks about multiple institutions and fields, only list the available fields for each. For instance, if asking about city and principal for IIT Madras and IIT Delhi, and the principal is only available for IIT Delhi, the response might be: "IIT Madras is located in Chennai. For IIT Delhi, the principal is [Principal's Name]."
 """
     print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
     print(prompt)
@@ -179,7 +160,6 @@ def load_memory():
 # --- Main App Logic ---
 generate_metadata_from_csv(CSV_FILE, TXT_FILE)
 embedding_model, texts, index = load_data_and_embeddings()
-csv_data = load_csv_data(CSV_FILE)
 TOP_K = len(texts)
 
 if "messages" not in st.session_state:
@@ -187,7 +167,7 @@ if "messages" not in st.session_state:
     load_memory()
 
 if not st.session_state["messages"]:
-    welcome_message = "👋 Hello! How can I help you today? I can assist you with any college information you need. Just ask!"
+    welcome_message = "👋 Hello! How can I help you today? I can assist you with any college information you need."
     st.session_state["messages"].append({"role": "assistant", "content": welcome_message})
     save_memory()
 
