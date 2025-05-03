@@ -141,15 +141,19 @@ Only include relevant, available information based on the user's request. Omit f
 
 ### INSTRUCTIONS:
 - Identify the specific field names the user is asking about.
-- From the CONTEXT, extract ONLY the 'Institution Name' and the values for the requested fields for the relevant institutions.
-- Respond with a list of institutions and their corresponding values for the requested fields.
-- If the user asks for multiple fields, include all of them in your response for each institution.
-- If a requested field is not available for an institution, do not include that field in the response for that institution.
-- Never say "data not available".
+- From the CONTEXT, extract the 'Institution Name' and the values for the requested fields for the relevant institutions.
+- Respond in natural English sentences.
+- If the user asks for multiple fields, include all available information for those fields for each institution.
+- **Crucially, if a requested field is not available for an institution (marked as 'N', 'No', or 'Nil' in the data), DO NOT mention that field in your response for that institution unless the user specifically asks if the information is available.**
 - Be precise and use complete sentences.
 
-For example, if the user asks "What is the city and principal of IIT Madras?", you should look for 'City' and 'Principal' in the context for 'IIT Madras' and respond with: "IIT Madras: City is Chennai, Principal is [Principal's Name]."
+For example, if the user asks "What is the city and principal of IIT Madras?", and the principal is 'Nil' in the data, you might respond: "IIT Madras is located in Chennai." (The principal information is simply omitted).
 
+If the user then asks, "Is the principal information available for IIT Madras?", you should then respond based on the data.
+
+If the user asks "What is the address of IIT Delhi?", you might respond: "The address of IIT Delhi is [Address of IIT Delhi]."
+
+If the user asks about multiple institutions, provide the available information for each in a clear and readable format.
 """
     print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
     print(prompt)
