@@ -133,6 +133,8 @@ You are a helpful, intelligent assistant that provides concise, accurate answers
 
 Only include relevant, available information based on the user's request. Omit fields that are missing or marked 'Nil'. Use clear, professional language.
 
+Do not mention if something unavailable or not found in response.
+
 ### CONTEXT:
 {context}
 
