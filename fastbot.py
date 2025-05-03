@@ -146,13 +146,6 @@ Only include relevant, available information based on the user's request. Omit f
 - If the user asks for multiple fields, include all available information for those fields for each institution.
 - **Crucially, if a requested field is not available for an institution (marked as 'N', 'No', or 'Nil' in the data), DO NOT mention that field in your response for that institution unless the user specifically asks if the information is available.**
 - Be precise and use complete sentences.
-
-For example, if the user asks "What is the city and principal of IIT Madras?", and the principal is 'Nil' in the data, you might respond: "IIT Madras is located in Chennai." (The principal information is simply omitted).
-
-If the user then asks, "Is the principal information available for IIT Madras?", you should then respond based on the data.
-
-If the user asks "What is the address of IIT Delhi?", you might respond: "The address of IIT Delhi is [Address of IIT Delhi]."
-
 If the user asks about multiple institutions, provide the available information for each in a clear and readable format.
 """
     print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
