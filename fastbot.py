@@ -42,7 +42,7 @@ st.markdown("""
     }
     </style>
 
-    <div class="centered-title">🎓 College Info Assistant</div>
+    <div class="centered-title">🎓 IHRD InfoBot</div>
     <div class="centered-subtitle">
         An Intelligent Chatbot for College Search Powered by FAISS, Sentence Transformers, and Gemini Flash
         <br>ALL MESSAGES ARE CURRENTLY MONITORED BY ADMIN FOR IMPROVING CHATBOT PERFORMANCE
