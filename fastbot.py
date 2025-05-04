@@ -97,6 +97,24 @@ def filter_relevant_fields(row, query):
 
     return relevant_text
 
+def process_row(row):
+    description = ""
+    institution_name = row.get('name_of_the_institution_full_name', '').strip()
+    if institution_name:
+        description += f"{institution_name}."
+    else:
+        description += "Institution Name: Not Available."
+
+    for field_name, field_value in row.items():
+        if not field_value:
+            continue
+        field_value = field_value.strip()
+        if field_value.lower() in ['n', 'no', 'Nil']:
+            continue
+        if field_name != 'Institution_Name':
+            clean_name = clean_field_name(field_name)
+            description += f" {clean_name}: {field_value}."
+
 
 def generate_metadata_from_csv(csv_filepath, output_txt_path, num_workers=None):
     if os.path.exists(output_txt_path):
