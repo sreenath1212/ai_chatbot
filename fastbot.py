@@ -65,39 +65,25 @@ def clean_field_name(field_name):
 
 
 
-def filter_relevant_fields(row, query):
+def process_row(row):
+    description = ""
     institution_name = row.get('name_of_the_institution_full_name', '').strip()
-    if not institution_name:
-        return None
-
-    relevant_text = f"Institution: {institution_name}."
-
-    # Search for relevant fields in query
-    query_lower = query.lower()
-    matched_fields = []
+    if institution_name:
+        description += f"{institution_name}."
+    else:
+        description += "Institution Name: Not Available."
 
     for field_name, field_value in row.items():
         if not field_value:
             continue
-        if field_value.lower() in ['n', 'no', 'nil']:
+        field_value = field_value.strip()
+        if field_value.lower() in ['n', 'no', 'Nil']:
             continue
+        if field_name != 'Institution_Name':
+            clean_name = clean_field_name(field_name)
+            description += f" {clean_name}: {field_value}."
 
-        clean_name = clean_field_name(field_name).lower()
-
-        # Match query terms to field names (approx match)
-        if any(token in clean_name for token in query_lower.split()):
-            matched_fields.append((field_name, field_value))
-
-    if not matched_fields:
-        return None
-
-    for fname, fval in matched_fields:
-        clean_fname = clean_field_name(fname)
-        relevant_text += f" {clean_fname}: {fval}."
-
-    return relevant_text
-
-
+    return description.strip()
 
 def generate_metadata_from_csv(csv_filepath, output_txt_path, num_workers=None):
     if os.path.exists(output_txt_path):
@@ -105,7 +91,7 @@ def generate_metadata_from_csv(csv_filepath, output_txt_path, num_workers=None):
     with open(csv_filepath, 'r', encoding='utf-8') as csvfile:
         reader = list(csv.DictReader(csvfile))
     with Pool(processes=num_workers or multiprocessing.cpu_count()) as pool:
-        paragraphs = pool.map(filter_relevant_fields, reader)
+        paragraphs = pool.map(process_row, reader)
     with open(output_txt_path, 'w', encoding='utf-8') as outfile:
         for paragraph in paragraphs:
             outfile.write(paragraph + '\n' + '-' * 40 + '\n')
@@ -124,25 +110,16 @@ def load_data_and_embeddings():
 
 
 def retrieve_relevant_context(query, top_k):
-    with open(CSV_FILE, 'r', encoding='utf-8') as csvfile:
-        reader = list(csv.DictReader(csvfile))
-
-    filtered_info = []
-    for row in reader:
-        entry = filter_relevant_fields(row, query)
-        if entry:
-            filtered_info.append(entry)
-
-    return "\n\n".join(filtered_info[:top_k])
-
+    query_emb = embedding_model.encode([query])
+    distances, indices = index.search(np.array(query_emb), top_k)
+    context = "\n\n".join([texts[i] for i in indices[0]])
+    return context
 
 def ask_gemini(context, question):
     prompt = f"""
 You are a helpful, intelligent assistant that provides concise, accurate answers about colleges.
 
 Only include relevant, available information. Omit fields that are missing or marked 'Nil'. Use clear, professional language.
-
-Avoid sounding robotic or simply listing fields. Instead, write in a friendly, informative tone as if you're talking to a student. Combine relevant details into flowing sentences.
 
 ### CONTEXT:
 {context}
@@ -151,7 +128,6 @@ Avoid sounding robotic or simply listing fields. Instead, write in a friendly, i
 {question}
 
 ### INSTRUCTIONS:
-- Omit nil valued complete information in response.
 - Answer only what the user asked.
 - Omit unrelated or unavailable details.
 - Expand abbreviations (e.g., BSc → Bachelor of Science).
