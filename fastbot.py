@@ -109,11 +109,15 @@ def load_data_and_embeddings():
 
 
 
-def retrieve_relevant_context(query, top_k):
+def retrieve_relevant_context(query, top_k, distance_threshold=0.7):
     query_emb = embedding_model.encode([query])
     distances, indices = index.search(np.array(query_emb), top_k)
-    context = "\n\n".join([texts[i] for i in indices[0]])
-    return context
+    context = []
+    for dist, idx in zip(distances[0], indices[0]):
+        if dist < distance_threshold:
+            context.append(texts[idx])
+    return "\n\n".join(context)
+
 
 def ask_gemini(context, question):
     prompt = f"""
