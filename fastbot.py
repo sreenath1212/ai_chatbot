@@ -105,7 +105,7 @@ def generate_metadata_from_csv(csv_filepath, output_txt_path, num_workers=None):
     with open(csv_filepath, 'r', encoding='utf-8') as csvfile:
         reader = list(csv.DictReader(csvfile))
     with Pool(processes=num_workers or multiprocessing.cpu_count()) as pool:
-        paragraphs = pool.map(process_row, reader)
+        paragraphs = pool.map(filter_relevant_fields, reader)
     with open(output_txt_path, 'w', encoding='utf-8') as outfile:
         for paragraph in paragraphs:
             outfile.write(paragraph + '\n' + '-' * 40 + '\n')
