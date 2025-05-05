@@ -119,11 +119,8 @@ Select the most relevant field names from the list below:
 {json.dumps(all_fields, indent=2)}
 
 Return ONLY a Python list of exact matching field names, nothing else. Example:
-["Field A", "Field B"]
+["Field A", "Field B"........."Field N"]
 
-If the user asks about any of these courses -  ['bsc', 'msc', 'btech', 'mtech', 'ba', 'ma', 'bcom', 'mcom', 'mba', 'bca', 'dca', 'pgdca', 'bba', 'dvoc', 'btm', 'mca', 'computer', 'science', 'electronics', 'engineering', 'commerce', 'business', 'administration', 'arts', 'journalism', 'literature', 'taxation', 'finance', 'accounting', 'logistics', 'supply chain', 'co-operation', 'applications', 'management', 'data', 'analytics', 'ai', 'ml', 'cyber', 'security', 'forensics', 'information', 'vlsi', 'embedded', 'systems', 'energy', 'biomedical', 'electrical', 'mechanical', 'automobile', 'civil', 'robotics', 'automation', 'hardware', 'technology', 'design', 'science'], check the ug and pg field and return only details of courses user asked about.
-
-Treat these as distinct categories: Applied Science Colleges, Engineering,Extension center, Technical Higher Secodary Schools, Regional Centre, Model Polytechnics, Study centre, and Model Finishing School and answer based on what user needs ,omit other categories even if available.
 
 """
     try:
@@ -170,6 +167,10 @@ You are a knowledgeable and friendly IHRD college information assistant. Your jo
 Use information provided in the context below. If the user is asking about IHRD institutions in general, you may use external knowledge for general facts like locations other details etc.
 
 Use the recent chat history to understand follow-up questions or references to previous answers.
+
+If the user asks about any of these courses -  ['bsc', 'msc', 'btech', 'mtech', 'ba', 'ma', 'bcom', 'mcom', 'mba', 'bca', 'dca', 'pgdca', 'bba', 'dvoc', 'btm', 'mca', 'computer', 'science', 'electronics', 'engineering', 'commerce', 'business', 'administration', 'arts', 'journalism', 'literature', 'taxation', 'finance', 'accounting', 'logistics', 'supply chain', 'co-operation', 'applications', 'management', 'data', 'analytics', 'ai', 'ml', 'cyber', 'security', 'forensics', 'information', 'vlsi', 'embedded', 'systems', 'energy', 'biomedical', 'electrical', 'mechanical', 'automobile', 'civil', 'robotics', 'automation', 'hardware', 'technology', 'design', 'science'], check the ug and pg field and return only details of courses user asked about.
+
+Treat these as distinct categories: Applied Science Colleges, Engineering,Extension center, Technical Higher Secodary Schools, Regional Centre, Model Polytechnics, Study centre, and Model Finishing School and answer based on what user needs ,omit other categories even if available.
 
 Your responses should sound natural and conversational — don't just list data, explain it briefly like a human would.
 
