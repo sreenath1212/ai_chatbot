@@ -81,7 +81,7 @@ st.markdown(
 
 # --- Configuration ---
 CSV_FILE = 'standardized_finatdata.csv'
-MEMORY_FILE = "chat_memory.json"
+#MEMORY_FILE = "chat_memory.json"
 
 # --- Gemini Setup ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
@@ -232,14 +232,14 @@ Do not tell about internal process, data and all. Act like a normal human.
         return f"❌ Gemini error: {e}"
 
 # --- Memory persistence ---
-def save_memory():
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(st.session_state["messages"], f)
+#def save_memory():
+  #  with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+     #   json.dump(st.session_state["messages"], f)
 
-def load_memory():
-    if os.path.exists(MEMORY_FILE):
-        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-            st.session_state["messages"] = json.load(f)
+#def load_memory():
+   # if os.path.exists(MEMORY_FILE):
+       # with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+          #  st.session_state["messages"] = json.load(f)
 
 # --- Main App Logic ---
 embedding_model, processed_data, texts, index = load_data_and_embeddings()
@@ -248,12 +248,12 @@ TOP_K = len(texts)
 
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
-    load_memory()
+    #load_memory()
 
 if not st.session_state["messages"]:
     welcome_message = "👋 Hello! How can I help you today? I can assist you with any college information you need."
     st.session_state["messages"].append({"role": "assistant", "content": welcome_message})
-    save_memory()
+   # save_memory()
 
 # --- Sidebar ---
 with st.sidebar:
