@@ -1,22 +1,19 @@
 import csv
 import re
-import multiprocessing
-from multiprocessing import Pool
-import streamlit as st
-import faiss
-from sentence_transformers import SentenceTransformer
-import numpy as np
-import requests
+import json
 import os
 import time
-import json
+import ast
+import streamlit as st
+import faiss
+import numpy as np
+from sentence_transformers import SentenceTransformer
 import google.generativeai as genai
-from difflib import get_close_matches
 
 # --- Streamlit config ---
 st.set_page_config(
-    page_title="🎓 IHRD InfoBot",
-    page_icon="🤖",
+    page_title="\U0001F393 IHRD InfoBot",
+    page_icon="\U0001F916",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -25,11 +22,8 @@ st.markdown("""
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 """, unsafe_allow_html=True)
 
-
-
 st.markdown("""
     <style>
-    
     .centered-title {
         text-align: center;
         font-size: 2.5em;
@@ -42,11 +36,9 @@ st.markdown("""
         color: #555;
         margin-bottom: 1em;
     }
-    
-    
     </style>
 
-    <div class="centered-title">🎓 IHRD InfoBot</div>
+    <div class="centered-title">\U0001F393 IHRD InfoBot</div>
     <div class="centered-subtitle">
         An Intelligent Chatbot for IHRD College Informations
         <br>Powered by FAISS, Sentence Transformers, and  Google-GenerativeAi(Gemini Flash)
@@ -69,8 +61,6 @@ st.markdown(
         border-top: 1px solid #eee;
         z-index: 100;
     }
-    
-    
     </style>
     <div class="footer">
         © 2025 IHRD InfoBot | Built with ❤️ by COLLEGE OF APPLIED SCIENCE MAVELIKKARA
@@ -79,40 +69,33 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- Configuration ---
+# --- Constants ---
 CSV_FILE = 'standardized_finatdata.csv'
-MEMORY_FILE = "chat_memory.json"
 
-# --- Gemini Setup ---
+# --- Primary Gemini ---
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 llm_model = genai.GenerativeModel('gemini-2.0-flash')
 
-# --- Utilities ---
+# --- Secondary Gemini for field identification ---
+genai_field_match = genai.configure(api_key=st.secrets["SECOND_GEMINI_API_KEY"])
+field_llm_model = genai.GenerativeModel('gemini-2.0-flash')
+
+# --- Utility Functions ---
 def clean_field_name(field_name):
-    field_name = field_name.replace('_', ' ').replace('\n', ' ').strip().capitalize()
-    field_name = re.sub(' +', ' ', field_name)
-    return field_name
+    return re.sub(' +', ' ', field_name.replace('_', ' ').replace('\n', ' ').strip().capitalize())
 
 def get_all_field_names(csv_path):
     with open(csv_path, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         return [clean_field_name(field) for field in reader.fieldnames]
 
-def match_fields_from_query(query, field_names, cutoff=0.5):
-    query_lower = query.lower()
-    matches = [f for f in field_names if any(word in f.lower() for word in query_lower.split())]
-    if not matches:
-        matches = get_close_matches(query_lower, field_names, n=3, cutoff=cutoff)
-    return matches
-
 def process_row(row):
     data = {}
-    institution_name = row.get('name_of_the_institution_full_name', '').strip()
-    data["Institution Name"] = institution_name if institution_name else "Not Available"
+    inst_name = row.get('name_of_the_institution_full_name', '').strip()
+    data["Institution Name"] = inst_name if inst_name else "Not Available"
     for field_name, field_value in row.items():
         if field_value and field_value.lower() not in ['n', 'no', 'nil']:
-            clean_name = clean_field_name(field_name)
-            data[clean_name] = field_value.strip()
+            data[clean_field_name(field_name)] = field_value.strip()
     return data
 
 @st.cache_resource
@@ -120,7 +103,6 @@ def load_data_and_embeddings():
     with open(CSV_FILE, 'r', encoding='utf-8') as csvfile:
         reader = list(csv.DictReader(csvfile))
         processed_data = [process_row(row) for row in reader]
-
     texts = [" ".join(f"{k}: {v}" for k, v in item.items()) for item in processed_data]
     embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
     embeddings = embedding_model.encode(texts, show_progress_bar=True)
@@ -128,55 +110,51 @@ def load_data_and_embeddings():
     index.add(np.array(embeddings))
     return embedding_model, processed_data, texts, index
 
-def is_course_query(query):
-    course_keywords = ['bsc', 'msc', 'btech', 'mtech', 'ba', 'ma', 'bcom', 'mcom', 'mba', 'bca', 'dca', 'pgdca', 'bba', 'dvoc', 'btm', 'mca', 'computer', 'science', 'electronics', 'engineering', 'commerce', 'business', 'administration', 'arts', 'journalism', 'literature', 'taxation', 'finance', 'accounting', 'logistics', 'supply chain', 'co-operation', 'applications', 'management', 'data', 'analytics', 'ai', 'ml', 'cyber', 'security', 'forensics', 'information', 'vlsi', 'embedded', 'systems', 'energy', 'biomedical', 'electrical', 'mechanical', 'automobile', 'civil', 'robotics', 'automation', 'hardware', 'technology', 'design', 'science']
-    return any(kw in query.lower() for kw in course_keywords)
+def identify_fields_from_query_llm(query, all_fields):
+    prompt = f"""
+Given the user query:
+"{query}"
 
-def get_course_matches_from_csv(query):
-    matched = []
-    course_keywords = query.lower().split()
-    with open(CSV_FILE, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            ug = row.get('list_of_ug_courses_and_intake', '').lower()
-            pg = row.get('list_of_pg_courses_and_intake', '').lower()
-            if any(kw in ug or kw in pg for kw in course_keywords):
-                matched.append(row)
-    return matched
+Select the most relevant field names from the list below:
+{json.dumps(all_fields, indent=2)}
 
-def build_context_for_course_query(query):
-    results = get_course_matches_from_csv(query)
-    paragraphs = []
-    for row in results:
-        inst = row.get('name_of_the_institution_full_name', 'Institution').strip()
-        ug = row.get('list_of_ug_courses_and_intake', '').strip()
-        pg = row.get('list_of_pg_courses_and_intake', '').strip()
-        block = f"Institution: {inst}."
-        if ug:
-            block += f" UG Courses: {ug}."
-        if pg:
-            block += f" PG Courses: {pg}."
-        paragraphs.append(block)
-    return "\n\n".join(paragraphs)
+Return ONLY a Python list of exact matching field names, nothing else. Example:
+["Field A", "Field B"]
+
+If the user asks about any of these courses -  ['bsc', 'msc', 'btech', 'mtech', 'ba', 'ma', 'bcom', 'mcom', 'mba', 'bca', 'dca', 'pgdca', 'bba', 'dvoc', 'btm', 'mca', 'computer', 'science', 'electronics', 'engineering', 'commerce', 'business', 'administration', 'arts', 'journalism', 'literature', 'taxation', 'finance', 'accounting', 'logistics', 'supply chain', 'co-operation', 'applications', 'management', 'data', 'analytics', 'ai', 'ml', 'cyber', 'security', 'forensics', 'information', 'vlsi', 'embedded', 'systems', 'energy', 'biomedical', 'electrical', 'mechanical', 'automobile', 'civil', 'robotics', 'automation', 'hardware', 'technology', 'design', 'science'], check the ug and pg field and return only details of courses user asked about.
+
+Treat these as distinct categories: Applied Science Colleges, Engineering,Extension center, Technical Higher Secodary Schools, Regional Centre, Model Polytechnics, Study centre, and Model Finishing School and answer based on what user needs ,omit other categories even if available.
+
+"""
+    try:
+        response = field_llm_model.generate_content(prompt)
+        text = response.text.strip()
+
+        match = re.search(r"\[.*?\]", text, re.DOTALL)
+        if match:
+            return ast.literal_eval(match.group(0))
+        else:
+            print("⚠️ No list detected in LLM response.")
+            return []
+    except Exception as e:
+        print("Field LLM Error:", e)
+        return []
 
 def retrieve_filtered_context(query, top_k, field_names, processed_data):
-    if is_course_query(query):
-        return build_context_for_course_query(query)
-    matched_fields = match_fields_from_query(query, field_names)
+    matched_fields = identify_fields_from_query_llm(query, field_names)
     query_emb = embedding_model.encode([query])
     distances, indices = index.search(np.array(query_emb), top_k)
-
-    filtered_context = []
+    output_blocks = []
     for i in indices[0]:
         row = processed_data[i]
-        context_lines = [f"Institution: {row.get('Institution Name', 'Unknown')}"]
+        block = [f"Institution: {row.get('Institution Name', 'Unknown')}"]
         for field in matched_fields:
             value = row.get(field)
             if value:
-                context_lines.append(f"{field}: {value}")
-        filtered_context.append("\n".join(context_lines))
-
-    return "\n\n".join(filtered_context)
+                block.append(f"{field}: {value}")
+        if len(block) > 1:
+            output_blocks.append("\n".join(block))
+    return "\n\n".join(output_blocks)
 
 def ask_gemini(context, question):
     history = ""
@@ -210,50 +188,31 @@ Do not tell about internal process, data and all. Act like a normal human.
 - Only include fields specifically asked about. Do not include unrelated details.
 - Treat these as distinct categories: research center, funded projects, industry-on-campus initiatives, earn-while-you-learn, incubation centers, startup initiatives, skill centers, MoUs, and internships.
 - Do not mention or hint at missing or unavailable data — just skip it.
-- If the question mentions a specific course (e.g., "MSc CS", "BSc Physics", "BTech in Electronics"), return:
-  - Only the **institution name** (`name_of_the_institution_full_name`),
-  - And the course fields:
-    - `list_of_pg_courses_and_intake` if it's a PG course (like MSc, MCom, MA),
-    - `list_of_ug_courses_and_intake` if it's a UG course (like BSc, BA, BCom, BTech),
-    - Or both if unsure.
+-
   - Do NOT include any other fields even if they are available.
-- Expand abbreviations (e.g., "BSc" → "Bachelor of Science", "IHRD", "MVK","TVM") where appropriate, using your general knowledge.
+- Expand abbreviations (e.g., "BSc" → "Bachelor of Science", "IHRD", "MVK"-Mavelikkara,"TVM") where appropriate, using your general knowledge.
 - If a user asks about a list (e.g., courses or projects), list only the relevant names or entries.
 - Be detailed and professional, but keep a friendly, natural tone.
 - Never say "data not available". Just focus on what *is* available and relevant.
 """
-    print("\n\n--- FINAL PROMPT TO GEMINI ---\n")
-    print(prompt)
-    print("\n--- END PROMPT ---\n")
     try:
         response = llm_model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"❌ Gemini error: {e}"
 
-# --- Memory persistence ---
-def save_memory():
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(st.session_state["messages"], f)
-
-def load_memory():
-    if os.path.exists(MEMORY_FILE):
-        with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-            st.session_state["messages"] = json.load(f)
-
-# --- Main App Logic ---
+# --- Load Data ---
 embedding_model, processed_data, texts, index = load_data_and_embeddings()
 all_field_names = get_all_field_names(CSV_FILE)
 TOP_K = len(texts)
 
+# --- App Initialization ---
 if "messages" not in st.session_state:
     st.session_state["messages"] = []
-    load_memory()
 
 if not st.session_state["messages"]:
-    welcome_message = "👋 Hello! How can I help you today? I can assist you with any college information you need."
-    st.session_state["messages"].append({"role": "assistant", "content": welcome_message})
-    save_memory()
+    welcome = "\U0001F44B Hello! I can help you with IHRD college information. Ask me anything."
+    st.session_state["messages"].append({"role": "assistant", "content": welcome})
 
 # --- Sidebar ---
 with st.sidebar:
@@ -265,13 +224,14 @@ with st.sidebar:
         st.markdown("*No chats yet.*")
     if st.button("🧹 Clear Chat"):
         st.session_state["messages"] = []
-        save_memory()
         st.rerun()
+        
     if st.button("📥 Download Chat"):
         if st.session_state["messages"]:
             chat_text = "\n\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state["messages"]])
             st.download_button("Download as TXT", data=chat_text, file_name="chat_history.txt", mime="text/plain")
 
+# --- Chat Display ---
 # --- Chat Display ---
 for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
@@ -294,4 +254,4 @@ if user_query:
             answer_placeholder.markdown(f"<div class='chat-bubble'>{final_answer}</div>", unsafe_allow_html=True)
             time.sleep(0.01)
     st.session_state["messages"].append({"role": "assistant", "content": raw_answer})
-    save_memory()
+    
