@@ -41,7 +41,7 @@ st.markdown("""
     <div class="centered-title">\U0001F393 IHRD InfoBot</div>
     <div class="centered-subtitle">
         An Intelligent Chatbot for IHRD College Informations
-        <br>Powered by FAISS, Sentence Transformers, and  Google-GenerativeAi(Gemini Flash)
+        
     </div>
     <hr>
 """, unsafe_allow_html=True)
